@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CashRegister.Models;
@@ -28,7 +23,7 @@ namespace CashRegister.Controllers
           {
               return NotFound();
           }
-            return await _context.Sales.ToListAsync();
+            return await _context.Sales.Include(s => s.ProductSales).ToListAsync();
         }
 
         // GET: api/Sale/5
@@ -39,7 +34,7 @@ namespace CashRegister.Controllers
           {
               return NotFound();
           }
-            var sale = await _context.Sales.FindAsync(id);
+            var sale = await _context.Sales.Include(s => s.ProductSales).FirstOrDefaultAsync(s => s.SaleId == id);
 
             if (sale == null)
             {
@@ -83,16 +78,71 @@ namespace CashRegister.Controllers
         // POST: api/Sale
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Sale>> PostSale(Sale sale)
+        public async Task<ActionResult<Sale>> PostSale(SaleRequest saleRequest)
         {
           if (_context.Sales == null)
           {
               return Problem("Entity set 'CashRegisterContext.Sales'  is null.");
           }
+
+          var sale = new Sale();
+
+          sale.ApartmentNumber = saleRequest.ApartmentNumber;
+          sale.IsLoan = saleRequest.IsLoan;
+          sale.Payment = saleRequest.Payment;
+          var productIds = saleRequest.ProductSales.Select(ps => ps.ProductId).ToList();
+
+          var products = await _context.Products .Where(p => productIds.Contains(p.ProductId))
+                                                .ToListAsync();
+
+        var productSales = new List<ProductSale>();
+        var total = 0;
+        foreach (var productSaleRequest in saleRequest.ProductSales)
+
+        {
+            var product = products.Find(p => p.ProductId == productSaleRequest.ProductId && p.IsActive);
+            if (product == null)
+            {
+                return BadRequest(new 
+                {
+                Error = "Invalid Product"
+                });
+            }
+            if (product.Quantity < productSaleRequest.Quantity)
+            {
+                    return BadRequest(new{
+                        Error = $"Insuficcient inventory for product {product.Name}"
+                    });
+            }
+
+            product.Quantity -= productSaleRequest.Quantity;
+            _context.Entry(sale).State = EntityState.Modified;
+
+            total += product.SalePrice * productSaleRequest.Quantity;
+            productSales.Add(new ProductSale {
+                Price = product.SalePrice,
+                ProductId = productSaleRequest.ProductId,
+                Quantity = productSaleRequest.Quantity
+            });
+
+        
+        }                                               
+          sale.ProductSales = productSales;
+        
+        if (sale.Payment < total)
+        {
+            return BadRequest(new {
+            Error = "The total value is higher than the Payment"
+            });
+        }
+        
+          sale.Total = total;
+          sale.Date = DateTime.Now;
+
             _context.Sales.Add(sale);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetSale", new { id = sale.SaleId }, sale);
+            return CreatedAtAction(nameof(GetSale), new { id = sale.SaleId }, sale);
         }
 
         // DELETE: api/Sale/5

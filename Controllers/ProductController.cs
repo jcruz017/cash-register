@@ -78,12 +78,20 @@ namespace CashRegister.Controllers
         // POST: api/Product
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Product>> PostProduct(Product product)
+        public async Task<ActionResult<Product>> PostProduct(ProductRequest productRequest)
         {
           if (_context.Products == null)
           {
               return Problem("Entity set 'CashRegisterContext.Products'  is null.");
           }
+
+          var product = new Product();
+          product.Name = productRequest.Name;
+          product.BuyPrice = productRequest.BuyPrice;
+          product.SalePrice = productRequest.SalePrice;
+          product.Quantity = productRequest.Quantity;
+          product.IsActive = true;
+
             _context.Products.Add(product);
             await _context.SaveChangesAsync();
 
@@ -104,7 +112,9 @@ namespace CashRegister.Controllers
                 return NotFound();
             }
 
-            _context.Products.Remove(product);
+            product.IsActive = false;
+
+            _context.Entry(product).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
             return NoContent();
