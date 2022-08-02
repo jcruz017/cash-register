@@ -23,6 +23,7 @@ if (app.Environment.IsDevelopment() || Boolean.Parse(Environment.GetEnvironmentV
     app.UseSwaggerUI();
 }
 
+app.UseCors();
 app.UseHttpsRedirection();
 
 app.MapControllers();
