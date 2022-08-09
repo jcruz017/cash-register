@@ -138,6 +138,21 @@ namespace CashRegister.Controllers
         
           sale.Total = total;
           sale.Date = DateTime.Now;
+          if (sale.IsLoan)
+          {
+            sale.Payment = 0;
+            if (string.IsNullOrEmpty(sale.ApartmentNumber))
+            {
+                return BadRequest(new {
+            Error = "the apartment number is required if it a loan"
+            });
+            }
+          }
+          else if (sale.Payment < sale.Total)
+           { return BadRequest(new {
+            Error = "the payment is insufficient"
+            });
+          }
 
             _context.Sales.Add(sale);
             await _context.SaveChangesAsync();
